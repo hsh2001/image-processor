@@ -2,6 +2,9 @@
 
 var imageProcessor = {};
 window.URL = window.URL || window.webkitURL;
+document.body = document.body ||
+                document.getElementsByTagName('body')[0] ||
+                document.createElement('body');
 
 
 /**
@@ -116,5 +119,44 @@ imageProcessor.compressImage = function (image, maxFileSize) {
         ).then(resolve).catch(reject);
       });
     });
+  });
+}
+
+
+/**
+*  @function requestImage 사용자에게 사진 파일을 입력할 것을 요청.
+*  @param {Boolean} multiple 사진의 복수 선택 허용 여부.
+*  @return {Promise}
+*/
+imageProcessor.requestImage = function (multiple) {
+  var input = document.createElement('input'),
+      target = document.getElementById('image-processor-hidden-element');
+
+  if (!target) {
+    target = document.createElement('div');
+    target.id = 'image-processor-hidden-element';
+    target.style.display = 'none';
+    document.body.appendChild(target);
+  }
+
+  target.appendChild(input);
+  input.setAttribute('type', 'file');
+  input.setAttribute('accept', '.jpg, .jpeg, .png, .gif, image/*');
+
+  if (multiple) input.setAttribute('multiple', 1);
+
+  return new Promise(function(resolve) {
+    input.onchange = function () {
+      var proms = Array.from(input.files).map(function (file) {
+        return imageProcessor.fileToImage(file);
+      });
+      (
+        proms.length == 1?
+          proms[0] :
+          Promise.all(proms)
+      ).then(resolve);
+    };
+
+    input.click();
   });
 }
