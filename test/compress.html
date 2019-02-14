@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <script src="../image-processor.js" charset="utf-8"></script>
+    <script>
+    var catImage = imageProcessor.preload('cat.jpg');
+    function compress() {
+      var size = +document.getElementById('image-size').value,
+          target = document.getElementById('image');
+      target.innerHTML = 'Loading...';
+      catImage
+        .then(
+          img => imageProcessor.compressImage(img, size)
+        )
+        .then(img => {
+          target.innerHTML = '';
+          target.appendChild(img);
+        });
+    }
+    </script>
+    <style media="screen">
+      img { width: 80% }
+    </style>
+  </head>
+  <body onload="compress()">
+    <input id="image-size" type="number" value="1500">
+    <button type="button" onclick="compress()">compress</button>
+    <br>
+    <div id="image"></div>
+  </body>
+</html>
