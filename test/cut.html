@@ -6,13 +6,16 @@
     <script>
     var catImage = imageProcessor.preload('cat.jpg');
 
-    function compress() {
-      var size = +document.getElementById('image-size').value,
+    function cut() {
+      var x1 = +document.getElementById('size-x1').value,
+          x2 = +document.getElementById('size-x2').value,
+          y1 = +document.getElementById('size-y1').value,
+          y2 = +document.getElementById('size-y2').value,
           target = document.getElementById('image');
       target.innerHTML = 'Loading...';
       catImage
         .then(
-          img => imageProcessor.compressImage(img, size)
+          img => imageProcessor.cut(img, x1, y1, x2, y2)
         )
         .then(img => {
           target.innerHTML = '';
@@ -25,9 +28,13 @@
       img { width: 80% }
     </style>
   </head>
-  <body onload="compress()">
-    <input id="image-size" type="number" value="1500">
-    <button type="button" onclick="compress()">compress</button>
+  <body onload="cut()">
+    <input id="size-x1" type="number" value="1000">
+    <input id="size-y1" type="number" value="1000">
+    <input id="size-x2" type="number" value="2700">
+    <input id="size-y2" type="number" value="2700">
+    <button type="button" onclick="cut()">cut</button>
+    <br>
     <br>
     <div id="image"></div>
   </body>

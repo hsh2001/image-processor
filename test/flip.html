@@ -6,13 +6,13 @@
     <script>
     var catImage = imageProcessor.preload('cat.jpg');
 
-    function compress() {
-      var size = +document.getElementById('image-size').value,
+    function flip() {
+      var dir = document.getElementById('image-dir').value,
           target = document.getElementById('image');
       target.innerHTML = 'Loading...';
       catImage
         .then(
-          img => imageProcessor.compressImage(img, size)
+          img => imageProcessor.flip(img, dir)
         )
         .then(img => {
           target.innerHTML = '';
@@ -25,9 +25,13 @@
       img { width: 80% }
     </style>
   </head>
-  <body onload="compress()">
-    <input id="image-size" type="number" value="1500">
-    <button type="button" onclick="compress()">compress</button>
+  <body onload="flip()">
+    <select id="image-dir" onchange="flip()">
+      <option value="x" selected>X</option>
+      <option value="y">Y</option>
+      <option value="xy">X and Y</option>
+      <option value="">no-flip</option>
+    </select>
     <br>
     <div id="image"></div>
   </body>

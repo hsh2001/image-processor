@@ -1,10 +1,43 @@
 // Copyright (c) 2019 Seung-hyun Hwang
 
 var imageProcessor = {};
-window.URL = window.URL || window.webkitURL;
-document.body = document.body ||
-                document.getElementsByTagName('body')[0] ||
-                document.createElement('body');
+
+
+//start of define methods of imageProcessor.
+~function (imageProcessor, URL) {
+
+
+if (!URL)
+  throw new Error("URL Object not support.");
+
+
+/**
+*  @function wait
+*  @return {Promise}
+*/
+function wait(ms) {
+  return new Promise(function(resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+
+/**
+*  @function getCanvas
+*  @return {HTMLCanvasElement}
+*/
+function getCanvas() {
+  return document.createElement('canvas');
+}
+
+
+/**
+*  @function getCanvas
+*  @return {CanvasRenderingContext2D}
+*/
+function getContext(c) {
+  return c.getContext('2d');
+}
 
 
 /**
@@ -36,28 +69,49 @@ imageProcessor.preload = function (srcList) {
 
 
 /**
+*  @function canvasToFile
+*  @param {HTMLCanvasElement} canvas
+*  @return {Promise}
+*/
+imageProcessor.canvasToFile = function (canvas, fileName) {
+  return new Promise(function(resolve) {
+    canvas.toBlob(function (blob) {
+      resolve(new File([blob], fileName || 'i.png'));
+    });
+  });
+}
+
+
+/**
+*  @function canvasToImage
+*  @param {HTMLCanvasElement} canvas
+*  @return {Promise}
+*/
+imageProcessor.canvasToImage = function (canvas) {
+  return imageProcessor
+          .canvasToFile(canvas)
+          .then(imageProcessor.fileToImage);
+}
+
+
+/**
 *  @function imageToFile
 *  @param {Image} image
 *  @param {String=} fileName
 *  @return {Promise}
 */
 imageProcessor.imageToFile = function (image, fileName) {
-  fileName = fileName || 'f.png';
-  return new Promise(function(resolve, reject) {
-    var canvas = document.createElement('canvas');
+  var canvas = getCanvas();
 
-     if (!canvas.toBlob)
-       throw new Error("HTMLCanvasElement.toBlob method does not support.");
+  if (!canvas.toBlob)
+   throw new Error("HTMLCanvasElement.toBlob method does not support.");
 
-     canvas.width = image.width;
-     canvas.height = image.height;
+  canvas.width = image.width;
+  canvas.height = image.height;
 
-     canvas.getContext('2d').drawImage(image, 0, 0);
-
-     canvas.toBlob(function (blob) {
-       resolve(new File([blob], fileName));
-     });
-  });
+  getContext(canvas).drawImage(image, 0, 0);
+  return imageProcessor
+          .canvasToFile(canvas, fileName || 'f.png');
 }
 
 
@@ -80,46 +134,39 @@ imageProcessor.fileToImage = function (file) {
 *  @return {Promise}
 */
 imageProcessor.compressImage = function (image, maxFileSize) {
-  var canvas = document.createElement('canvas'),
-      ctx = canvas.getContext('2d'),
+  var canvas = getCanvas(),
+      ctx = getContext(canvas),
       imageSize;
 
+  if (!canvas.toBlob)
+    throw new Error("HTMLCanvasElement.toBlob method does not support.");
   canvas.width = image.width;
   canvas.height = image.height;
 
   ctx.drawImage(image, 0, 0);
 
-  return new Promise(function(resolve, reject) {
-    if (!canvas.toBlob) return reject(
-      new Error("HTMLCanvasElement.toBlob method does not support.")
-    );
+  return imageProcessor
+          .canvasToFile(canvas)
+          .then(function (file) {
+            var newWidth, newHeight, ratio;
 
-    canvas.toBlob(function (blob) {
-      var file = new File([blob], 'i.png'),
-          newWidth, newHeight;
+            imageSize = file.size;
+            ratio = Math.sqrt(maxFileSize / imageSize);
 
-      imageSize = file.size;
+            if (imageSize <= maxFileSize)
+              return image;
 
-      if (imageSize <= maxFileSize)
-        return resolve(image);
+            canvas.width =
+            newWidth =
+              Math.floor(canvas.width * ratio);
 
-      canvas.width =
-      newWidth =
-        Math.floor(canvas.width * Math.sqrt(maxFileSize / imageSize));
+            canvas.height =
+            newHeight =
+              Math.floor(canvas.height * ratio);
 
-      canvas.height =
-      newHeight =
-        Math.floor(canvas.height  * Math.sqrt(maxFileSize / imageSize));
-
-      ctx.drawImage(image, 0, 0, newWidth, newHeight);
-
-      canvas.toBlob(function (_blob) {
-        imageProcessor.fileToImage(
-          new File([_blob], 'i.png')
-        ).then(resolve).catch(reject);
-      });
-    });
-  });
+            ctx.drawImage(image, 0, 0, newWidth, newHeight);
+            return imageProcessor.canvasToImage(canvas);
+          });
 }
 
 
@@ -130,13 +177,14 @@ imageProcessor.compressImage = function (image, maxFileSize) {
 */
 imageProcessor.requestImage = function (multiple) {
   var input = document.createElement('input'),
-      target = document.getElementById('image-processor-hidden-element');
+      targetId = 'image-processor-hidden-element',
+      target = document.getElementById(targetId);
 
   if (!target) {
     target = document.createElement('div');
-    target.id = 'image-processor-hidden-element';
+    target.id = targetId;
     target.style.display = 'none';
-    document.body.appendChild(target);
+    (document.body || document.head).appendChild(target);
   }
 
   target.appendChild(input);
@@ -160,3 +208,126 @@ imageProcessor.requestImage = function (multiple) {
     input.click();
   });
 }
+
+
+
+/**
+*  @function resize 이미지의 크기를 재조정.
+*  @param {Image} image 대상 이미지.
+*  @param {Object} sizeSet 조정할 이미지의 크기 데이터.
+*  @param {Number=} sizeSet.width 조정할 이미지의 폭.
+*  @param {Number=} sizeSet.height 조정할 이미지의 높이.
+*  @param {Number} sizeSet.ratio 조정할 이미지의 백분위 크기. (100% = Number(100))
+*  @return {Promise}
+*  이미지의 폭과 높이, 비율이 모두 주어질 경우 비율을 우선으로 합니다.
+*/
+imageProcessor.resize = function (image, sizeSet) {
+  var canvas = getCanvas(),
+      ctx = getContext(canvas),
+      newWidth,
+      newHeight;
+
+  if (!sizeSet)
+    throw new Error(sizeSet + " is not an object.");
+
+  if (isFinite(sizeSet.ratio)) {
+    newWidth = image.width * sizeSet.ratio / 100;
+    newHeight = image.height * sizeSet.ratio / 100;
+  } else {
+    newWidth = sizeSet.width || image.width;
+    newHeight = sizeSet.height || image.height;
+  }
+
+  canvas.width = newWidth;
+  canvas.height = newHeight;
+  ctx.drawImage(image, 0, 0, newWidth, newHeight);
+  return imageProcessor.canvasToImage(canvas);
+}
+
+
+/**
+*  @function cut 이미지의 크기를 자름.
+*  @param {Image} image 대상 이미지.
+*  @param {Number=} x1
+*  @param {Number=} y1
+*  @param {Number=} x2
+*  @param {Number=} y2
+*  @return {Promise}
+*/
+imageProcessor.cut = function (image, x1, y1, x2, y2) {
+  var canvas = getCanvas(),
+      ctx = getContext(canvas),
+      scaleX = 1,
+      scaleY = 1;
+
+  x1 = x1 || 0;
+  y1 = y1 || 0;
+  x2 = x2 || image.width;
+  y2 = y2 || image.height;
+
+  if (x1 > x2) {
+    //reverse imgage x
+    var temp = x1;
+    x1 = x2;
+    x2 = temp;
+    scaleX = -1;
+  }
+
+  if (y1 > y2) {
+    //reverse imgage x
+    var temp = y1;
+    y1 = y2;
+    y2 = temp;
+    scaleY = -1;
+  }
+
+  ctx.scale(scaleX, scaleY);
+  canvas.width = x2 - x1;
+  canvas.height = y2 - y1;
+  ctx.drawImage(image, -x1, -y1, image.width * scaleX, image.height * scaleY);
+
+  return imageProcessor.canvasToImage(canvas);
+}
+
+
+/**
+*  @function flip 이미지를 좌우 또는 상하 반전시킴.
+*  @param {Image} image 대상 이미지.
+*  @param {String=} dir 반전시킬 방향. ('x' 또는 'y' 또는 'xy' 또는 'yx'. 대소문자 구별없음.)
+*  @return {Promise}
+*/
+imageProcessor.flip = function (image, dir) {
+  var canvas = getCanvas(),
+      ctx = getContext(canvas),
+      scaleX = 1,
+      scaleY = 1;
+
+  switch (Array.from(dir+'').sort().join('').toLowerCase()) {
+    case 'x':
+      scaleX = -1;
+      break;
+    case 'y':
+      scaleY = -1;
+      break;
+    case 'xy':
+      scaleX = -1;
+      scaleY = -1;
+      break;
+    case '':
+      return Promise.resolve(image);
+    default:
+      throw new Error("Unknown direction.");
+  }
+
+  canvas.width = image.width;
+  canvas.height = image.height;
+  ctx.scale(scaleX, scaleY);
+  ctx.drawImage(image, 0, 0, canvas.width * scaleX, canvas.height * scaleY);
+
+  return imageProcessor.canvasToImage(canvas);
+}
+
+
+
+//end of define methods of imageProcessor.
+}(imageProcessor, window.URL || window.webkitURL);
